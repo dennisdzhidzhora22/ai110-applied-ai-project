@@ -155,6 +155,8 @@ if submit:
     else:
         st.session_state.history.append(guess_int)
 
+        # FIXME: Sets up an issue further down the line with secret becoming a string
+        # Handled in check_guess(), comparison in except block is bugged
         if st.session_state.attempts % 2 == 0:
             secret = str(st.session_state.secret)
         else:
