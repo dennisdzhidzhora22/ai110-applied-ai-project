@@ -1,20 +1,24 @@
 # AI Game Arena — System Diagram
 
 ```mermaid
-flowchart TD
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
+flowchart LR
     Human(["Human Player"])
 
     subgraph UI["Streamlit UI — app.py"]
+        direction TB
         GameTab["Game: Number Guessing or Connect-4"]
         ModeTab["AI Mode: Teacher / Opponent / Off"]
     end
 
     subgraph Games["Game Logic"]
+        direction TB
         NG["Number Guessing"]
         C4["Connect-4"]
     end
 
     subgraph Agent["AI Agent — ai_agent.py"]
+        direction TB
         A1["① Retrieve relevant strategy notes"]
         A2["② Build prompt + game state"]
         A3["③ Call Gemini → move or hint"]
@@ -23,7 +27,12 @@ flowchart TD
         A1 --> A2 --> A3 --> A4
     end
 
+    subgraph LLM["Gemini 1.5 Flash — Google AI API"]
+        GeminiCall["LLM Inference"]
+    end
+
     subgraph RAG["RAG Layer — strategy_notes.py"]
+        direction TB
         Retrieve["Retrieve relevant section"]
         UpdateNotes["Append new insight"]
         NotesDB[("strategy_notes/*.md")]
@@ -31,11 +40,8 @@ flowchart TD
         UpdateNotes --> NotesDB
     end
 
-    subgraph LLM["Gemini 1.5 Flash — Google AI API"]
-        GeminiCall["LLM Inference"]
-    end
-
     subgraph Guard["Guardrails — guardrails.py"]
+        direction TB
         ValidMove["Validate move is legal"]
         ValidNotes["Validate insight is novel"]
         GuardLog[("guardrails.log")]
@@ -44,6 +50,7 @@ flowchart TD
     end
 
     subgraph Eval["Testing & Evaluation"]
+        direction TB
         Pytest["pytest (tests/)"]
         Evaluator["evaluator.py"]
         EvalOut[("eval_results.json")]
@@ -58,8 +65,9 @@ flowchart TD
     %% Agent RAG retrieval
     A1 <--> Retrieve
 
-    %% Agent calls Gemini
+    %% Agent and RAG both call Gemini
     A3 <--> GeminiCall
+    Retrieve <--> GeminiCall
 
     %% Guardrail on move output
     A4 --> ValidMove
@@ -71,9 +79,6 @@ flowchart TD
     ValidNotes -->|"Novel"| UpdateNotes
     ValidNotes -->|"Redundant — discard"| GuardLog
 
-    %% Notes retrieval also calls Gemini
-    Retrieve <--> GeminiCall
-
     %% Testing hooks
     Pytest --> Games
     Pytest --> Guard
@@ -81,9 +86,9 @@ flowchart TD
     Evaluator --> GeminiCall
     Evaluator --> RAG
 
-    %% Human reviews outputs
-    Human -. "reviews" .-> EvalOut
-    Human -. "reviews" .-> GuardLog
+    %% Human reviews outputs (labelled distinctly to avoid overlay)
+    Human -. "reviews eval results" .-> EvalOut
+    Human -. "reviews guard log" .-> GuardLog
 ```
 
 ## Component Summary
