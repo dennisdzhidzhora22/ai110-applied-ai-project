@@ -27,7 +27,7 @@ flowchart LR
         A1 --> A2 --> A3 --> A4
     end
 
-    subgraph LLM["Gemini 1.5 Flash — Google AI API"]
+    subgraph LLM["Gemini API (configurable model) — Google AI"]
         GeminiCall["LLM Inference"]
     end
 
@@ -102,6 +102,7 @@ flowchart LR
 | RAG Layer | `strategy_notes.py` | Load, retrieve, and update persistent strategy notes |
 | Strategy Notes | `strategy_notes/*.md` | Accumulated game knowledge (seed + updates) |
 | Guardrails | `guardrails.py` | Validate moves and notes updates; log all decisions |
+| Config | `config.py` | Centralised Gemini client, model selection, retry logic |
 | Gemini API | Google AI | LLM for move decisions, hints, insights, retrieval |
 | Evaluator | `evaluator.py` | Reliability: AI-vs-AI, convergence, consistency, integrity |
 | Tests | `tests/` | Unit tests for game logic and guardrails |

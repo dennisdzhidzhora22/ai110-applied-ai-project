@@ -1,69 +1,103 @@
-# 🎮 Game Glitch Investigator: The Impossible Guesser
+# AI Game Arena
 
-## 🚨 The Situation
+[Video Link](https://youtu.be/AMSFDhRkjqk)
 
-You asked an AI to build a simple "Number Guessing Game" using Streamlit.
-It wrote the code, ran away, and now the game is unplayable. 
+This project extends **Game Glitch Investigator: The Impossible Guesser**, a Streamlit number guessing game that was intentionally shipped with multiple bugs. The original goal was to find and fix those bugs, covering incorrect hint directions, broken scoring, state reset failures, and difficulty inconsistencies, while learning how Streamlit session state works and practicing AI-assisted debugging.
 
-- You can't win.
-- The hints lie to you.
-- The secret number seems to have commitment issues.
+## Title and Summary
 
-## 🛠️ Setup
+**AI Game Arena** is a two-game AI-powered platform built on top of the fixed number guessing game. It adds a fully playable Connect-4 game and integrates a Gemini-powered AI agent that can act as either a **Teacher** (giving Socratic coaching hints after each move) or an **Opponent** (competing directly against the player). The agent uses a persistent strategy knowledge base that grows from game to game, making it a live demonstration of Retrieval-Augmented Generation, agentic workflows, and LLM guardrails working together in a real application.
 
-1. Install dependencies: `pip install -r requirements.txt`
-2. Run the broken app: `python -m streamlit run app.py`
+## Architecture Overview
 
-## 🕵️‍♂️ Your Mission
+These are the main layers of the system:
 
-1. **Play the game.** Open the "Developer Debug Info" tab in the app to see the secret number. Try to win.
-2. **Find the State Bug.** Why does the secret number change every time you click "Submit"? Ask ChatGPT: *"How do I keep a variable from resetting in Streamlit when I click a button?"*
-3. **Fix the Logic.** The hints ("Higher/Lower") are wrong. Fix them.
-4. **Refactor & Test.** - Move the logic into `logic_utils.py`.
-   - Run `pytest` in your terminal.
-   - Keep fixing until all tests pass!
+- **Streamlit UI (`app.py`)** - tab-based interface for both games. Sidebar controls AI mode, notes mode, and model selection.
+- **Game Logic (`logic_utils.py`, `connect4_logic.py`)** - pure Python, no AI. Handles board state, move validation, win detection, and scoring.
+- **AI Agent (`ai_agent.py`)** - orchestrates a five-step agentic workflow per move: 1. retrieve relevant strategy notes, 2. build a persona-specific prompt, 3. call Gemini, 4. validate the response via guardrails, 5. post-game: generate an insight and update the notes if approved.
+- **RAG Layer (`strategy_notes.py`)** - loads and retrieves from per-game markdown knowledge bases (`strategy_notes/*.md`). Notes are seeded with strategy content and grow as the agent learns from completed games. A "blank" mode starts from empty headers to make the growth visible.
+- **Guardrails (`guardrails.py`)** - validates that AI-suggested moves are legal and that proposed note additions are novel and non-destructive before accepting them. All decisions are logged to `guardrails.log`.
+- **Config (`config.py`)** - centralises the Gemini client, model selection (Flash Lite or Flash), and automatic retry logic for transient API errors.
+- **Evaluator (`evaluator.py`)** - standalone reliability script: tests AI guessing convergence, minimax AI-vs-AI correctness, Gemini response consistency, and notes file integrity.
 
-## 📝 Document Your Experience
+An **Agent Trace** expander in the UI makes every intermediate step visible during gameplay - the retrieved notes excerpt, the active persona, the validation result, and the post-game insight, directly demonstrating the RAG and agentic workflow in action.
 
-### [ ] Describe the game's purpose.
+## Setup Instructions
 
-The purpose of this game is to guess a certain secret number from within a range of numbers in a limited number of guesses. The range of numbers and number of guesses are increased or decreased depending on the selected difficulty.
+1. **Clone the repo and install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### [ ] Detail which bugs you found.
+2. **Add your Gemini API key** — create a `.env` file in the project root:
+   ```
+   GEMINI_API_KEY=your_key_here
+   ```
 
-The bugs I found are:
-- Incorrect hint directions
-- The secret number was cast to a string on even attempts, causing unexpected results with lexicographical comparison
-- Guesses that were too high added 5 points on even attempts instead of always decreasing 5 points
-- Size of ranges relative to difficulty was out of order
-- Number of guess attempts relative to difficulty was out of order
-- New game handler hardcoded randint(1, 100) instead of using the appropriate low and high range boundaries
-- Number of attempts taken was set to 0 after starting new games, but set to 1 on the very first game
-- Status was not reset to "playing", causing the game to stop early after starting a new game
-- Number of remaining attempts rendered before the submit handler, showing an outdated attempt count
-- Switching difficulty didn't reset attempts, secret number, score, status, or history
+3. **Run the app:**
+   ```bash
+   streamlit run app.py
+   ```
 
-### [ ] Explain what fixes you applied.
+4. **Run the test suite:**
+   ```bash
+   pytest tests/
+   ```
 
-- Incorrect hint directions: swapped the hint messages in check_guess so "Go LOWER!" shows when the guess is too high and "Go HIGHER!" shows when the guess is too low
-- Secret cast to string on even attempts: removed the if attempts % 2 == 0 block that was converting the secret to a string, and added a defensive try/except in check_guess to convert both values to int in case of future type mismatches
-- Too High incorrectly rewarded points: changed update_score so that a "Too High" outcome always deducts 5 points, consistent with "Too Low"
-- Difficulty ranges out of order: swapped Normal and Hard ranges so the progression is Easy (1–20), Normal (1–50), Hard (1–100)
-- Attempt limits out of order: swapped Easy and Normal attempt limits so the progression is Easy (8), Normal (6), Hard (5)
-- New game hardcoded range: replaced random.randint(1, 100) in the new game handler with random.randint(low, high) to respect the selected difficulty
-- Attempt count inconsistency between new game and first game: changed attempts to always start at 0, both on the first game and after pressing New Game
-- Status not reset on new game: added st.session_state.status = "playing" to the new game handler so the game doesn't stay stuck in a won/lost state
-- Outdated attempt count displayed: moved st.info to below the submit handler so the remaining attempts shown always reflect the current attempt count
-- Difficulty switch didn't reset game state: added difficulty tracking in session state so switching difficulty automatically resets the secret, attempts, score, status, and history
+5. **Run the reliability evaluator** (requires API key):
+   ```bash
+   python evaluator.py
+   ```
+   Results are saved to `eval_results.json`.
 
-## 📸 Demo
+## Sample Interactions
 
-- [Insert a screenshot of your fixed, winning game here]
+**Example 1 — Number Guessing, Teacher mode, Seeded notes**
 
-![Demo Image](demoimage.png) 
+> Player guesses 50 on attempt 1 (range 1–100). Result: Too High.
+>
+> 🧑‍🏫 Coach: *"Good start using the midpoint - that's binary search thinking. Now that you know the answer is below 50, what's the midpoint of your new range? Try to always cut the remaining possibilities in half."*
+>
+> Agent Trace — Step 1 retrieved: *"Binary search is optimal: always guess the midpoint of the remaining range to halve possibilities each turn."*
 
-## 🚀 Stretch Features
+**Example 2 — Connect-4, Opponent mode**
 
-- [ ] [If you choose to complete Challenge 1, insert a screenshot of your pytest results showing the tests passing.]
+> AI plays column 4 (centre).
+>
+> 🟡 *"I'm taking the centre column — controlling the middle maximises the number of winning lines I can build in all four directions."*
+>
+> Agent Trace — Step 4 Validation: passed — column 4 is legal.
 
-![Edge Cases Test](edgecasetest.png)
+**Example 3 — Post-game Agent Trace, Blank notes mode**
+
+> Game ends. Reflecting spinner runs.
+>
+> Agent Trace — Step 5 Notes update: *Notes updated ✓*
+>
+> Insight: *"- Playing defensively in the first three moves limited the opponent's options but left the centre uncontrolled; consider balancing blocking with centre occupation early."*
+>
+> `connect4_blank.md` gains a new `## Learned` section.
+
+## Design Decisions
+
+**Seeded vs. blank notes mode** - Two versions of each notes file are kept: one pre-seeded with correct strategy for quality AI responses, one with empty headers to make RAG growth visible during demos. This avoids the problem of needing prior games before RAG is useful.
+
+**Gemini for retrieval** - The retrieval step calls Gemini to extract the most relevant excerpt from the notes rather than using keyword search. This is a slower method, but requires no additional infrastructure and produces more contextually appropriate excerpts.
+
+**Guardrail design** - The notes update guard calls Gemini to judge novelty rather than using string similarity. This is more semantically accurate but adds a second API call per post-game cycle. The trade-off was accepted because correctness matters more than latency in a post-game step.
+
+**Centralised config** - After the model name appeared in three separate files, it was moved to `config.py` with a retry wrapper to handle API errors. This also enables the sidebar model selector to switch models at runtime without touching agent code.
+
+**No minimax in gameplay** - The Connect-4 opponent is Gemini-powered, not minimax. Minimax exists only in `evaluator.py` as a benchmark. This keeps the gameplay AI consistent with the rest of the system and allows the agent's reasoning to be demonstrated, at the cost of a weaker opponent.
+
+## Testing Summary
+
+**What worked:** The 57-test pytest suite (15 original + 27 Connect-4 logic tests + 15 guardrail tests) caught real issues, most notably a type-coercion bug in `check_guess` and an off-by-one in the attempt counter. The evaluator's convergence check confirmed that Gemini's number guessing reliably stays within the binary search bound across all three difficulty levels.
+
+**What didn't:** The notes update pipeline was initially silent, the guardrail was rejecting valid APPROVED responses because Gemini sometimes returns "APPROVED. This is novel." rather than the bare word. The fix (`startswith("APPROVED")` instead of `== "APPROVED"`) was only discoverable by inspecting `guardrails.log`. Unit tests for LLM-dependent behaviour are inherently limited because the output is non-deterministic.
+
+**What I learned:** Testing AI-integrated systems requires a different approach than testing pure logic. The guardrail unit tests use mocked Gemini responses, which validated the decision logic but couldn't catch the response format mismatch. Integration tests, or at least careful log inspection, are necessary for anything that depends on LLM output format.
+
+## Reflection
+
+Building this project made the gap between "AI can write code" and "AI can build a reliable system" very concrete. The agentic workflow, RAG layer, and guardrails each work individually, but getting them to compose correctly required understanding how they interact, especially around timing (Streamlit rerenders), state persistence, and the non-determinism of LLM outputs. A very important skill wasn't just prompting, it was also knowing when to trust the AI's output and when to verify it independently. Working with Claude Code as a development partner also changed how I think about oversight. The AI caught bugs faster than I could have manually, but it also introduced subtle issues, like the balloon animation firing on every rerender, or the agent trace showing across game tabs, that required human observation to notice. The best results came from treating AI suggestions as a starting point for review, not a definitive answer.
